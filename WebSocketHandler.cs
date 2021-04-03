@@ -15,9 +15,7 @@
         private static int MaxPeers = 4096;
         private static int MaxLobbies = 1024;
 
-        private static readonly Random Random = new Random();
-
-        private readonly ConcurrentDictionary<Guid, Lobby> _lobbies = new ConcurrentDictionary<Guid, Lobby>();
+        private readonly ConcurrentDictionary<string, Lobby> _lobbies = new ConcurrentDictionary<string, Lobby>();
 
         public async Task Handle(WebSocket webSocket)
         {
@@ -29,41 +27,44 @@
 
             using (Peer peer = Peer.Create(webSocket))
             {
-                ArraySegment<byte> buffer = new ArraySegment<byte>(new byte[1024]);
-                while (webSocket.State == WebSocketState.Open)
+                try
                 {
-                    List<byte> receivedBytes = new List<byte>();
-                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(buffer, CancellationToken.None);
-                    while (!result.EndOfMessage)
+                    ArraySegment<byte> buffer = new ArraySegment<byte>(new byte[4 * 1024]);
+                    while (webSocket.State == WebSocketState.Open)
                     {
-                        receivedBytes.AddRange(buffer);
-                        result = await webSocket.ReceiveAsync(buffer, CancellationToken.None);
+                        List<byte> receivedBytes = new List<byte>();
+                        WebSocketReceiveResult result = await webSocket.ReceiveAsync(buffer, CancellationToken.None);
+                        while (!result.EndOfMessage)
+                        {
+                            receivedBytes.AddRange(buffer.Take(result.Count));
+                            result = await webSocket.ReceiveAsync(buffer, CancellationToken.None);
+                        }
+
+                        receivedBytes.AddRange(buffer.Take(result.Count));
+
+                        string message = receivedBytes.ToArray().GetString();
+                        await ParseMessage(peer, message);
+                    }
+                }
+                finally
+                {
+                    if (!string.IsNullOrWhiteSpace(peer.lobby) && _lobbies.TryGetValue(peer.lobby, out Lobby lobby) &&
+                        await lobby.Leave(peer))
+                    {
+                        _ = _lobbies.TryRemove(peer.lobby, out _);
+                        Console.WriteLine("Deleted lobby {0}, {1} still open.", peer.lobby, _lobbies.Count);
+                        peer.lobby = null;
                     }
 
-                    receivedBytes.AddRange(buffer.Take(result.Count));
-
-                    string message = receivedBytes.ToArray().GetString();
-                    await ParseMessage(peer, message);
+                    peer.shouldCloseConnection = false;
                 }
-
-                if (peer.lobby.HasValue && _lobbies.TryGetValue(peer.lobby.Value, out Lobby lobby) &&
-                    await lobby.Leave(peer))
-                {
-                    _ = _lobbies.TryRemove(peer.lobby.Value, out _);
-                    Console.WriteLine("Deleted lobby {0}, {1} still open.", peer.lobby, _lobbies.Count);
-                    peer.lobby = null;
-                }
-
-                peer.shouldCloseConnection = false;
-
-                // TODO: Implement "OnClose"
             }
         }
 
-        private async Task JoinLobby(Peer peer, Guid inputLobby)
+        private async Task JoinLobby(Peer peer, string inputLobby)
         {
-            Guid lobbyId = inputLobby;
-            if (lobbyId == Guid.Empty)
+            string lobbyId = inputLobby;
+            if (string.IsNullOrWhiteSpace(lobbyId))
             {
                 if (MaxLobbies <= _lobbies.Count)
                 {
@@ -71,15 +72,21 @@
                     return;
                 }
 
-                if (peer.lobby.HasValue)
+                if (!string.IsNullOrWhiteSpace(peer.lobby))
                 {
                     Console.WriteLine("Peer {0} already has a lobby.", peer);
                     return;
                 }
 
-                lobbyId = Guid.NewGuid();
-                _lobbies[lobbyId] = new Lobby(lobbyId, peer.id);
+                do
+                {
+                    lobbyId = Guid.NewGuid().ToString().Substring(0, 4).ToUpperInvariant();
+                } while (!_lobbies.TryAdd(lobbyId, new Lobby(lobbyId, peer.id)));
                 Console.WriteLine("Peer {0} created lobby {1}.", peer, lobbyId);
+            }
+            else
+            {
+                lobbyId = lobbyId.ToUpperInvariant();
             }
 
             if (!_lobbies.TryGetValue(lobbyId, out Lobby lobby))
@@ -95,9 +102,9 @@
             }
 
             peer.lobby = lobbyId;
-            List<Peer> peers = new List<Peer>();
-            await lobby.IteratePeers(otherPeer => peers.Add(otherPeer));
-            Console.WriteLine("Peer {0} is joining lobby {1} with {2} peers.", peer, lobbyId, string.Join(",", peers));
+            int peerCount = 0;
+            await lobby.IteratePeers(_ => ++peerCount);
+            Console.WriteLine("Peer {0} is joining lobby {1} with {2} peers.", peer, lobbyId, peerCount);
             await lobby.Join(peer);
             await peer.webSocket.SendTextAsync($"J: {lobbyId}");
         }
@@ -122,23 +129,26 @@
             string data = message.Substring(separaterIndex);
             if (IsCommand(command, 'J'))
             {
-                string lobbyData = command.Substring(commandIndex).Trim();
-                Guid lobbyId = Guid.Empty;
+                int nameIndex = command.LastIndexOf('|');
+                peer.name = command.Substring(commandIndex, nameIndex).Trim();
+                string lobbyData = command.Substring(nameIndex).Trim();
+                string lobbyId = string.Empty;
                 if (!string.IsNullOrEmpty(lobbyData))
                 {
-                    lobbyId = Guid.Parse(lobbyData);
+                    lobbyId = lobbyData;
                 }
 
                 await JoinLobby(peer, lobbyId);
+                return;
             }
 
-            if (!peer.lobby.HasValue)
+            if (string.IsNullOrWhiteSpace(peer.lobby))
             {
                 Console.WriteLine("Invalid command {0} while not in a lobby.", message);
                 return;
             }
 
-            if (!_lobbies.TryGetValue(peer.lobby.Value, out Lobby lobby))
+            if (!_lobbies.TryGetValue(peer.lobby, out Lobby lobby))
             {
                 Console.WriteLine("Server error, lobby {0} not found.", peer.lobby);
                 return;
@@ -149,7 +159,6 @@
                 await lobby.Seal(peer);
                 return;
             }
-
 
             int destinationId = int.Parse(command.Substring(commandIndex).Trim());
             if (destinationId == Lobby.HostId)

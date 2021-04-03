@@ -16,7 +16,8 @@
         public readonly int id;
         public readonly WebSocket webSocket;
 
-        public Guid? lobby;
+        public string lobby;
+        public string name;
 
         public bool shouldCloseConnection = true;
 
@@ -31,7 +32,7 @@
                 {
                     return;
                 }
-                if (!lobby.HasValue)
+                if (string.IsNullOrWhiteSpace(lobby))
                 {
                     await webSocket.CloseAsync(WebSocketCloseStatus.ProtocolError, "Have not joined any lobby yet",
                         CancellationToken.None);
@@ -59,7 +60,7 @@
             return id;
         }
 
-        public override bool Equals(object? obj)
+        public override bool Equals(object obj)
         {
             return ReferenceEquals(this, obj) || obj is Peer other && Equals(other);
         }

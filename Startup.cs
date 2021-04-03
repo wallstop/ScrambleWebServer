@@ -5,6 +5,7 @@
     using Microsoft.AspNetCore.Http;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using System;
     using System.Net.WebSockets;
 
     public class Startup
@@ -13,6 +14,7 @@
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            _ = services.AddControllers();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -24,10 +26,17 @@
             }
 
             _ = app.UseRouting();
-            _ = app.UseWebSockets();
+
+            WebSocketOptions webSocketOptions = new WebSocketOptions()
+            {
+                KeepAliveInterval = TimeSpan.FromSeconds(120),
+                ReceiveBufferSize = 4 * 1024
+            };
+
+            _ = app.UseWebSockets(webSocketOptions);
             _ = app.UseEndpoints(endpoints =>
             {
-                _ = endpoints.MapGet("/", async context =>
+                _ = endpoints.MapGet("/test", async context =>
                 {
                     await context.Response.WriteAsync("Hello World!");
                 });

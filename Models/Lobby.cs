@@ -12,7 +12,7 @@
     {
         public const int HostId = 1;
 
-        public readonly Guid id;
+        public readonly string id;
         public readonly int hostId;
 
         public bool Sealed => _sealed;
@@ -25,9 +25,9 @@
 
         private readonly SemaphoreSlim _lock = new SemaphoreSlim(1);
 
-        public Lobby(Guid id, int hostId)
+        public Lobby(string id, int hostId)
         {
-            this.id = id != Guid.Empty ? id : throw new ArgumentException(nameof(id));
+            this.id = !string.IsNullOrWhiteSpace(id) ? id : throw new ArgumentException(nameof(id));
             this.hostId = hostId;
         }
 
@@ -72,8 +72,8 @@
 
                 foreach (Peer otherPeer in _peers)
                 {
-                    await otherPeer.webSocket.SendTextAsync($"N: {peerId}");
-                    await peer.webSocket.SendTextAsync($"N: {otherPeer.id}");
+                    await otherPeer.webSocket.SendTextAsync($"N: {peerId}|{peer.name}");
+                    await peer.webSocket.SendTextAsync($"N: {otherPeer.id}|{otherPeer.name}");
                 }
 
                 _peers.Add(peer);
