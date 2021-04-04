@@ -73,7 +73,7 @@
                 foreach (Peer otherPeer in _peers)
                 {
                     await otherPeer.webSocket.SendTextAsync($"N: {peer.name}|{peerId}");
-                    await peer.webSocket.SendTextAsync($"N: {otherPeer.name}|{otherPeer.id}");
+                    await peer.webSocket.SendTextAsync($"N: {otherPeer.name}|{GetPeerId(otherPeer)}");
                 }
 
                 _peers.Add(peer);
