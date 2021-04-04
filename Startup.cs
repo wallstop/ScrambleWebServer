@@ -40,6 +40,10 @@
                 {
                     await context.Response.WriteAsync("Hello World!");
                 });
+                _ = endpoints.MapGet("/", async context =>
+                {
+                    await context.Response.WriteAsync("");
+                });
             });
 
             WebSocketHandler handler = new WebSocketHandler();

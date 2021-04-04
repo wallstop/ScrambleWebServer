@@ -126,12 +126,20 @@
                 return;
             }
 
-            string data = message.Substring(separaterIndex);
             if (IsCommand(command, 'J'))
             {
                 int nameIndex = command.LastIndexOf('|');
-                peer.name = command.Substring(commandIndex, nameIndex).Trim();
-                string lobbyData = command.Substring(nameIndex).Trim();
+                if (nameIndex < 0)
+                {
+                    Console.WriteLine("Invalid Join message received: {0}.", message);
+                    return;
+                }
+                peer.name = command.Substring(commandIndex, nameIndex - commandIndex).Trim();
+                string lobbyData = string.Empty;
+                if (nameIndex != command.Length - 1)
+                {
+                    lobbyData = command.Substring(nameIndex + 1).Trim();
+                }
                 string lobbyId = string.Empty;
                 if (!string.IsNullOrEmpty(lobbyData))
                 {
@@ -183,6 +191,7 @@
 
             if (IsCommand(command, 'O') || IsCommand(command, 'A') || IsCommand(command, 'C'))
             {
+                string data = message.Substring(separaterIndex);
                 await destination.webSocket.SendTextAsync($"{command[0]}: {lobby.GetPeerId(peer)}{data}");
                 return;
             }
