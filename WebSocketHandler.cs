@@ -192,12 +192,12 @@
             if (IsCommand(command, 'O') || IsCommand(command, 'A') || IsCommand(command, 'C'))
             {
                 string data = message.Substring(separaterIndex);
+                Console.WriteLine("Received command {0} with data {1}.", command, data);
                 await destination.webSocket.SendTextAsync($"{command[0]}: {lobby.GetPeerId(peer)}{data}");
                 return;
             }
 
             Console.WriteLine("Invalid command found in message {0}.", message);
-            return;
         }
 
         private static bool IsCommand(string command, char commandKey)

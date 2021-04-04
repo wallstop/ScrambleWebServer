@@ -47,7 +47,7 @@
                 Peer peer;
                 do
                 {
-                    int peerId = Random.Next(int.MinValue, int.MaxValue);
+                    int peerId = Random.Next();
                     peer = new Peer(peerId, webSocket);
                 } while (!Peers.TryAdd(peer, true));
 
