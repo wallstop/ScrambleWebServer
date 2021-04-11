@@ -101,11 +101,25 @@
                 {
                     if (close)
                     {
-                        return otherPeer.webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure,
-                            "Room host has disconnected", CancellationToken.None);
+                        try
+                        {
+                            return otherPeer.webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure,
+                                "Room host has disconnected", CancellationToken.None);
+                        }
+                        catch
+                        {
+                            return Task.CompletedTask;
+                        }
                     }
 
-                    return otherPeer.webSocket.SendTextAsync($"D: {peerId}");
+                    try
+                    {
+                        return otherPeer.webSocket.SendTextAsync($"D: {peerId}");
+                    }
+                    catch
+                    {
+                        return Task.CompletedTask;
+                    }
                 }).ToList();
                 await Task.WhenAll(leaveTasks);
 
