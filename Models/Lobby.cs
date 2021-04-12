@@ -70,11 +70,14 @@
                 string joined = $"I: {peerId}";
                 await peer.webSocket.SendTextAsync(joined);
 
+                List<Task> peerCommunication = new List<Task>(_peers.Count * 2);
                 foreach (Peer otherPeer in _peers)
                 {
-                    await otherPeer.webSocket.SendTextAsync($"N: {peer.name}|{peerId}");
-                    await peer.webSocket.SendTextAsync($"N: {otherPeer.name}|{GetPeerId(otherPeer)}");
+                    peerCommunication.Add(otherPeer.webSocket.SendTextAsync($"N: {peer.name}|{peerId}"));
+                    peerCommunication.Add(peer.webSocket.SendTextAsync($"N: {otherPeer.name}|{GetPeerId(otherPeer)}"));
                 }
+
+                await Task.WhenAll(peerCommunication);
 
                 _peers.Add(peer);
             }
