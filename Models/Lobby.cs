@@ -153,10 +153,13 @@
             {
                 _sealed = true;
 
+                List<Task> peerSealing = new List<Task>(_peers.Count);
                 foreach (Peer otherPeer in _peers)
                 {
-                    await otherPeer.webSocket.SendTextAsync("S: ");
+                    peerSealing.Add(otherPeer.webSocket.SendTextAsync("S: "));
                 }
+
+                await Task.WhenAll(peerSealing);
 
                 _closeTask = Task.Run(async () =>
                 {
